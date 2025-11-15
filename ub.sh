@@ -36,14 +36,14 @@ group_name="pmta_$instance_name"
 
 # Files to download
 files=(
-    "powermta_4.0r6-201204021810_amd64.deb https://raw.githubusercontent.com/19965/sh/main/powermta_4.0r6-201204021810_amd64.deb"
-    "pmta https://raw.githubusercontent.com/19965/sh/main/pmta"
-    "pmtad https://raw.githubusercontent.com/19965/sh/main/pmtad"
-    "pmtahttpd https://raw.githubusercontent.com/19965/sh/main/pmtahttpd"
-    "pmtasnmpd https://raw.githubusercontent.com/19965/sh/main/pmtasnmpd"
-    "license https://raw.githubusercontent.com/19965/sh/main/license"
-    "config https://raw.githubusercontent.com/19965/sh/main/config"
-    "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem"
+    "powermta_4.0r6-201204021810_amd64.deb https://raw.githubusercontent.com/19965/sh2/main/powermta_4.0r6-201204021810_amd64.deb"
+    "pmta https://raw.githubusercontent.com/19965/sh2/main/pmta"
+    "pmtad https://raw.githubusercontent.com/19965/sh2/main/pmtad"
+    "pmtahttpd https://raw.githubusercontent.com/19965/sh2/main/pmtahttpd"
+    "pmtasnmpd https://raw.githubusercontent.com/19965/sh2/main/pmtasnmpd"
+    "license https://raw.githubusercontent.com/19965/sh2/main/license"
+    "config https://raw.githubusercontent.com/19965/sh2/main/config"
+    "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh2/main/mykey.6068805.com.pem"
 )
 
 # Download files
