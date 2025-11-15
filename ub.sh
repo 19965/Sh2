@@ -1,239 +1,123 @@
 #!/bin/bash
+set -e
 
-# Exit on any error
-set -e 
-
-# Validate user privileges
+### --- PRECHECKS ---
 if [ "$(id -u)" -ne 0 ]; then
-    echo "This script must be run as root. Exiting."
+    echo "Run as root."
     exit 1
 fi
 
-# Prompt for instance-specific inputs
-read -p "Enter instance name (e.g., instance1, instance2): " instance_name
-read -p "Your PMTA IP: " pmtaip
-read -p "Your PMTA hostname: " pmtahostname
-read -p "Your PMTA port: " pmtaport
+echo ""
+echo "=== Second PMTA Instance Installer (PMTA2) ==="
+echo ""
 
-# Validate instance name
-if [[ ! $instance_name =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    echo "Invalid instance name. Only letters, numbers, hyphens and underscores allowed. Exiting."
-    exit 1
-fi
+read -p "PMTA2 IP: " pmtaip
+read -p "PMTA2 hostname: " pmtahostname
+read -p "PMTA2 SMTP port: " pmtaport
+read -p "PMTA2 HTTP admin port: " pmtahttpport
 
-# Validate IP address format
 if [[ ! $pmtaip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Invalid IP address format. Exiting."
+    echo "Invalid IP."
     exit 1
 fi
 
-# Instance-specific variables
-instance_dir="/etc/pmta_$instance_name"
-service_name="pmta_$instance_name"
-log_dir="/var/log/pmta_$instance_name"
-user_name="pmta_$instance_name"
-group_name="pmta_$instance_name"
+### --- DIRECTORIES ---
+mkdir -p /etc/pmta2
+mkdir -p /var/log/pmta2
 
-# Files to download
+### --- CREATE USER ---
+if ! id "pmta2" >/dev/null 2>&1; then
+    groupadd --system pmta2 || true
+    useradd --system --no-create-home --home-dir /etc/pmta2 --shell /bin/false -g pmta2 pmta2
+fi
+
+### --- DOWNLOAD FILES ---
 files=(
-    "powermta_4.0r6-201204021810_amd64.deb https://raw.githubusercontent.com/19965/sh2/main/powermta_4.0r6-201204021810_amd64.deb"
-    "pmta https://raw.githubusercontent.com/19965/sh2/main/pmta"
-    "pmtad https://raw.githubusercontent.com/19965/sh2/main/pmtad"
-    "pmtahttpd https://raw.githubusercontent.com/19965/sh2/main/pmtahttpd"
-    "pmtasnmpd https://raw.githubusercontent.com/19965/sh2/main/pmtasnmpd"
-    "license https://raw.githubusercontent.com/19965/sh2/main/license"
-    "config https://raw.githubusercontent.com/19965/sh2/main/config"
-    "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh2/main/mykey.6068805.com.pem"
+    "powermta.deb https://raw.githubusercontent.com/19965/sh/main/powermta_4.0r6-201204021810_amd64.deb"
+    "pmta https://raw.githubusercontent.com/19965/sh/main/pmta"
+    "pmtad https://raw.githubusercontent.com/19965/sh/main/pmtad"
+    "pmtahttpd https://raw.githubusercontent.com/19965/sh/main/pmtahttpd"
+    "pmtasnmpd https://raw.githubusercontent.com/19965/sh/main/pmtasnmpd"
+    "license https://raw.githubusercontent.com/19965/sh/main/license"
+    "config https://raw.githubusercontent.com/19965/sh/main/config"
 )
 
-# Download files
-for file in "${files[@]}"; do
-    filename=$(echo $file | awk '{print $1}')
-    url=$(echo $file | awk '{print $2}')
-    echo "Downloading $filename..."
-    wget -q -O "$filename" "$url" || { echo "Failed to download $filename. Exiting."; exit 1; }
+for entry in "${files[@]}"; do
+    name=$(echo $entry | awk '{print $1}')
+    url=$(echo $entry | awk '{print $2}')
+    wget -q -O "$name" "$url"
 done
 
-# Create instance-specific user and group
-echo "Creating user and group for instance $instance_name..."
-if ! id "$user_name" &>/dev/null; then
-    # Create pmta group
-    if ! getent group "$group_name" >/dev/null; then
-        groupadd --system "$group_name"
-    fi
-    # Create pmta user
-    useradd --system --no-create-home --home-dir "$instance_dir" --shell /bin/false -g "$group_name" "$user_name"
-    echo "Created user $user_name and group $group_name."
-else
-    echo "User $user_name already exists."
-fi
+### --- INSTALL PMTA PACKAGE ---
+dpkg -x powermta.deb /tmp/pmta2_extract
 
-# Install PowerMTA using dpkg (only if not already installed system-wide)
-if ! dpkg -l | grep -q powermta; then
-    echo "Installing PowerMTA..."
-    dpkg -i powermta_4.0r6-201204021810_amd64.deb || { 
-        echo "Failed to install PowerMTA. Attempting to fix dependencies..."; 
-        apt-get update && apt-get install -f -y || { echo "Failed to fix dependencies. Exiting."; exit 1; }
-    }
-else
-    echo "PowerMTA already installed system-wide, skipping installation."
-fi
+cp /tmp/pmta2_extract/usr/sbin/* /usr/sbin/pmta2- 2>/dev/null || true
+cp -r /tmp/pmta2_extract/etc/pmta/* /etc/pmta2/
 
-# Stop existing instance service if running
-echo "Stopping existing service for instance $instance_name..."
-systemctl stop "$service_name" 2>/dev/null || echo "Service $service_name not running, continuing setup."
+### --- COPY CUSTOM FILES ---
+cp -f config /etc/pmta2/
+cp -f license /etc/pmta2/
+cp -f pmta /usr/sbin/pmta2
+cp -f pmtad /usr/sbin/pmtad2
+cp -f pmtahttpd /usr/sbin/pmtahttpd2
+cp -f pmtasnmpd /usr/sbin/pmtasnmpd2
 
-# Create instance directory
-echo "Creating instance directory $instance_dir..."
-mkdir -p "$instance_dir"
+### --- CONFIG UPDATE ---
+sed -i "s/QQQipQQQ/$pmtaip/g"   /etc/pmta2/config
+sed -i "s/QQQhostnameQQQ/$pmtahostname/g" /etc/pmta2/config
+sed -i "s/QQQportQQQ/$pmtaport/g" /etc/pmta2/config
+sed -i "s/8890/$pmtahttpport/g" /etc/pmta2/config
 
-# Backup existing instance configurations
-backup_dir="${instance_dir}_backup_$(date +%Y%m%d%H%M%S)"
-if [ -d "$instance_dir" ] && [ "$(ls -A $instance_dir)" ]; then
-    echo "Backing up existing configuration to $backup_dir..."
-    mkdir -p "$backup_dir"
-    cp -r "$instance_dir"/* "$backup_dir/" 2>/dev/null || echo "No existing configuration to backup."
-fi
+### --- PERMISSIONS ---
+chown -R pmta2:pmta2 /etc/pmta2
+chown -R pmta2:pmta2 /var/log/pmta2
+chmod 600 /etc/pmta2/license
 
-# Copy files to instance-specific locations
-echo "Copying files to instance directory..."
-\cp -f license "$instance_dir/"
-\cp -f config "$instance_dir/"
-\cp -f "mykey.$pmtahostname.pem" "$instance_dir/mykey.$pmtahostname.pem"
-
-# Copy binaries with proper permissions
-echo "Installing binaries with proper permissions..."
-\cp -f pmta /usr/sbin/
-\cp -f pmtad /usr/sbin/
-\cp -f pmtahttpd /usr/sbin/
-\cp -f pmtasnmpd /usr/sbin/
-
-# Set execute permissions on binaries
-chmod 755 /usr/sbin/pmta
-chmod 755 /usr/sbin/pmtad
-chmod 755 /usr/sbin/pmtahttpd
-chmod 755 /usr/sbin/pmtasnmpd
-
-# Set proper ownership on binaries
-chown root:root /usr/sbin/pmta
-chown root:root /usr/sbin/pmtad
-chown root:root /usr/sbin/pmtahttpd
-chown root:root /usr/sbin/pmtasnmpd
-
-# Update configuration with provided inputs
-echo "Updating configurations for instance $instance_name..."
-sed -i "s/QQQipQQQ/$pmtaip/g" "$instance_dir/config"
-sed -i "s/QQQhostnameQQQ/$pmtahostname/g" "$instance_dir/config"
-sed -i "s/QQQportQQQ/$pmtaport/g" "$instance_dir/config"
-
-# Update configuration to use instance-specific paths
-sed -i "s|/var/log/pmta|$log_dir|g" "$instance_dir/config"
-sed -i "s|/etc/pmta|$instance_dir|g" "$instance_dir/config"
-
-# Create log directory and set permissions
-mkdir -p "$log_dir"
-chown "$user_name:$group_name" "$log_dir"
-chmod 755 "$log_dir"
-
-# Set ownership and permissions for instance directory
-echo "Setting permissions..."
-chown -R "$user_name:$group_name" "$instance_dir/"
-chmod 755 "$instance_dir"
-chmod 600 "$instance_dir/license"
-chmod 600 "$instance_dir/mykey.$pmtahostname.pem"
-chmod 644 "$instance_dir/config"
-
-# Create instance-specific systemd service file
-echo "Creating systemd service for instance $instance_name..."
-cat > "/etc/systemd/system/$service_name.service" << EOF
+### --- CREATE SYSTEMD SERVICE ---
+cat > /etc/systemd/system/pmta2.service <<EOF
 [Unit]
-Description=PowerMTA Daemon - Instance $instance_name
+Description=PowerMTA 2
 After=network.target
 
 [Service]
 Type=forking
-User=$user_name
-Group=$group_name
-ExecStart=/usr/sbin/pmtad -c $instance_dir -l $log_dir
-ExecReload=/bin/kill -HUP \$MAINPID
-Restart=on-failure
-RestartSec=5s
-PermissionsStartOnly=true
+User=pmta2
+Group=pmta2
+ExecStart=/usr/sbin/pmta2 -c /etc/pmta2/config
+PIDFile=/etc/pmta2/pmta.pid
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Create instance-specific HTTP service if needed
-if [ -f /usr/sbin/pmtahttpd ]; then
-    cat > "/etc/systemd/system/${service_name}_http.service" << EOF
+cat > /etc/systemd/system/pmtahttp2.service <<EOF
 [Unit]
-Description=PowerMTA HTTP Daemon - Instance $instance_name
-After=network.target $service_name.service
+Description=PowerMTA2 HTTP admin
+After=pmta2.service
 
 [Service]
 Type=simple
-User=$user_name
-Group=$group_name
-ExecStart=/usr/sbin/pmtahttpd -c $instance_dir -l $log_dir
+User=pmta2
+Group=pmta2
+ExecStart=/usr/sbin/pmtahttpd2 -c /etc/pmta2/config
 Restart=on-failure
-RestartSec=5s
-PermissionsStartOnly=true
 
 [Install]
 WantedBy=multi-user.target
 EOF
-fi
 
-# Reload systemd and start services
-echo "Starting services for instance $instance_name..."
+### --- START SERVICES ---
 systemctl daemon-reload
+systemctl enable pmta2
+systemctl enable pmtahttp2
+systemctl restart pmta2
+systemctl restart pmtahttp2
 
-systemctl enable "$service_name.service"
-systemctl start "$service_name.service"
-
-if [ -f "/etc/systemd/system/${service_name}_http.service" ]; then
-    systemctl enable "${service_name}_http.service"
-    systemctl start "${service_name}_http.service"
-fi
-
-# Verify services are running
-echo "Checking service status..."
-sleep 5  # Give services time to start
-
-if systemctl is-active --quiet "$service_name.service"; then
-    echo "✓ PMTA service for instance $instance_name is running"
-else
-    echo "✗ PMTA service for instance $instance_name failed to start"
-    systemctl status "$service_name.service" -l --no-pager
-    journalctl -u "$service_name.service" -n 20 --no-pager
-fi
-
-if [ -f "/etc/systemd/system/${service_name}_http.service" ] && systemctl is-active --quiet "${service_name}_http.service"; then
-    echo "✓ PMTA HTTP service for instance $instance_name is running"
-fi
-
-# Completion message
 echo ""
-echo "PMTA installation for instance '$instance_name' successful!"
-echo "============================================="
-echo "Instance name: $instance_name"
-echo "PMTA host: $pmtahostname"
-echo "PMTA IP: $pmtaip"
-echo "PMTA port: $pmtaport"
-echo "Configuration directory: $instance_dir"
-echo "Log directory: $log_dir"
-echo "Service name: $service_name"
-echo "PMTA mail account: support@$pmtahostname"
-echo "PMTA username: admin"
-echo "PMTA password: admin1111"
-echo ""
-echo "Management commands:"
-echo "  systemctl start $service_name"
-echo "  systemctl stop $service_name"
-echo "  systemctl status $service_name"
-if [ -f "/etc/systemd/system/${service_name}_http.service" ]; then
-    echo "  systemctl start ${service_name}_http"
-    echo "  systemctl stop ${service_name}_http"
-fi
-echo "============================================="
+echo "=============================="
+echo " PMTA2 installed successfully!"
+echo " Hostname: $pmtahostname"
+echo " SMTP Port: $pmtaport"
+echo " HTTP Admin Port: $pmtahttpport"
+echo "=============================="
