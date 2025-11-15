@@ -101,11 +101,24 @@ echo "Copying files to instance directory..."
 \cp -f config "$instance_dir/"
 \cp -f "mykey.$pmtahostname.pem" "$instance_dir/mykey.$pmtahostname.pem"
 
-# Copy binaries (these will be shared across instances)
+# Copy binaries with proper permissions
+echo "Installing binaries with proper permissions..."
 \cp -f pmta /usr/sbin/
 \cp -f pmtad /usr/sbin/
 \cp -f pmtahttpd /usr/sbin/
 \cp -f pmtasnmpd /usr/sbin/
+
+# Set execute permissions on binaries
+chmod 755 /usr/sbin/pmta
+chmod 755 /usr/sbin/pmtad
+chmod 755 /usr/sbin/pmtahttpd
+chmod 755 /usr/sbin/pmtasnmpd
+
+# Set proper ownership on binaries
+chown root:root /usr/sbin/pmta
+chown root:root /usr/sbin/pmtad
+chown root:root /usr/sbin/pmtahttpd
+chown root:root /usr/sbin/pmtasnmpd
 
 # Update configuration with provided inputs
 echo "Updating configurations for instance $instance_name..."
@@ -117,17 +130,18 @@ sed -i "s/QQQportQQQ/$pmtaport/g" "$instance_dir/config"
 sed -i "s|/var/log/pmta|$log_dir|g" "$instance_dir/config"
 sed -i "s|/etc/pmta|$instance_dir|g" "$instance_dir/config"
 
-# Create log directory
+# Create log directory and set permissions
 mkdir -p "$log_dir"
 chown "$user_name:$group_name" "$log_dir"
+chmod 755 "$log_dir"
 
-# Set ownership and permissions for instance
+# Set ownership and permissions for instance directory
 echo "Setting permissions..."
-chown "$user_name:$group_name" /usr/sbin/pmtahttpd
 chown -R "$user_name:$group_name" "$instance_dir/"
-chmod 755 /usr/sbin/pmtahttpd
+chmod 755 "$instance_dir"
 chmod 600 "$instance_dir/license"
 chmod 600 "$instance_dir/mykey.$pmtahostname.pem"
+chmod 644 "$instance_dir/config"
 
 # Create instance-specific systemd service file
 echo "Creating systemd service for instance $instance_name..."
@@ -144,6 +158,7 @@ ExecStart=/usr/sbin/pmtad -c $instance_dir -l $log_dir
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
 RestartSec=5s
+PermissionsStartOnly=true
 
 [Install]
 WantedBy=multi-user.target
@@ -163,6 +178,7 @@ Group=$group_name
 ExecStart=/usr/sbin/pmtahttpd -c $instance_dir -l $log_dir
 Restart=on-failure
 RestartSec=5s
+PermissionsStartOnly=true
 
 [Install]
 WantedBy=multi-user.target
@@ -183,11 +199,14 @@ fi
 
 # Verify services are running
 echo "Checking service status..."
+sleep 5  # Give services time to start
+
 if systemctl is-active --quiet "$service_name.service"; then
     echo "✓ PMTA service for instance $instance_name is running"
 else
     echo "✗ PMTA service for instance $instance_name failed to start"
-    systemctl status "$service_name.service"
+    systemctl status "$service_name.service" -l --no-pager
+    journalctl -u "$service_name.service" -n 20 --no-pager
 fi
 
 if [ -f "/etc/systemd/system/${service_name}_http.service" ] && systemctl is-active --quiet "${service_name}_http.service"; then
