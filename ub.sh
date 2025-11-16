@@ -31,13 +31,13 @@ mkdir -p "$bin_dir"
 echo "[*] Downloading files..."
 
 files=(
-    "pmta https://raw.githubusercontent.com/19965/sh/main/pmta"
-    "pmtad https://raw.githubusercontent.com/19965/sh/main/pmtad"
-    "pmtahttpd https://raw.githubusercontent.com/19965/sh/main/pmtahttpd"
-    "pmtasnmpd https://raw.githubusercontent.com/19965/sh/main/pmtasnmpd"
-    "license https://raw.githubusercontent.com/19965/sh/main/license"
-    "config https://raw.githubusercontent.com/19965/sh/main/config"
-    "mykey.$pmtahost.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem"
+    "pmta https://raw.githubusercontent.com/19965/sh2/main/pmta"
+    "pmtad https://raw.githubusercontent.com/19965/sh2/main/pmtad"
+    "pmtahttpd https://raw.githubusercontent.com/19965/sh2/main/pmtahttpd"
+    "pmtasnmpd https://raw.githubusercontent.com/19965/sh2/main/pmtasnmpd"
+    "license https://raw.githubusercontent.com/19965/sh2/main/license"
+    "config https://raw.githubusercontent.com/19965/sh2/main/config"
+    "mykey.$pmtahost.pem https://raw.githubusercontent.com/19965/sh2/main/mykey.6068805.com.pem"
 )
 
 for file in "${files[@]}"; do
