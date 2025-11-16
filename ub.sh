@@ -16,8 +16,6 @@ read -p "Instance name (example: pmta2): " instance
 read -p "PMTA IP: " pmtaip
 read -p "PMTA Hostname: " pmtahost
 read -p "PMTA Port (must be unique): " pmtaport
-read -p "PMTA HTTP Port (unique): " httpport
-read -p "PMTA SNMP Port (unique): " snmpport
 
 # Directories for this instance
 inst_dir="/etc/$instance"
@@ -67,8 +65,7 @@ sed -i "s/QQQhostnameQQQ/$pmtahost/g" "$inst_dir/config"
 sed -i "s/QQQportQQQ/$pmtaport/g" "$inst_dir/config"
 
 # Add unique HTTP/SNMP port
-echo "http-port $httpport" >> "$inst_dir/config"
-echo "snmp-port $snmpport" >> "$inst_dir/config"
+
 
 ##################################
 # SYSTEMD SERVICE FOR INSTANCE   #
@@ -103,7 +100,5 @@ echo "Binary dir: $bin_dir"
 echo "Service name: $svc_name"
 echo "Hostname: $pmtahost"
 echo "SMTP Port: $pmtaport"
-echo "HTTP Port: $httpport"
-echo "SNMP Port: $snmpport"
 echo "Login: admin / admin1111"
 echo "============================================="
