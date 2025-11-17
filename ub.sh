@@ -1,101 +1,83 @@
 #!/bin/bash
 set -e
 
-echo "=== PowerMTA 4.0r6 MULTI INSTANCE CLONE INSTALLER ==="
-
-if [ "$(id -u)" != "0" ]; then
-    echo "Run this script as ROOT."
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Run as root"
     exit 1
 fi
 
-read -p "Instance name (example: pmta2): " INSTANCE
-read -p "New SMTP port (unique): " SMTP_PORT
-read -p "New HTTP port (unique): " HTTP_PORT
-read -p "New hostname: " HOST
-read -p "New IP: " IP
+echo "Second PMTA Instance Installer"
+read -p "PMTA2 IP: " pmtaip
+read -p "PMTA2 hostname: " hostname
+read -p "PMTA2 SMTP PORT: " smtpport
+read -p "PMTA2 Web Port: " webport
 
-# Paths for the new instance
-ETC_NEW="/etc/$INSTANCE"
-LOG_NEW="/var/log/$INSTANCE"
-SPOOL_NEW="/var/spool/$INSTANCE"
-BIN_NEW="/usr/sbin/$INSTANCE"
-RUN_NEW="/var/run/$INSTANCE"
+### DIRECTORIES FOR SECOND INSTANCE
+INSTDIR="/opt/pmta2"
+CONFDIR="/etc/pmta2"
+LOGDIR="/var/log/pmta2"
+SPOOLDIR="/var/spool/pmta2"
+PIDFILE="/var/run/pmta2.pid"
 
-echo "[*] Creating directory structure..."
-mkdir -p $BIN_NEW
-mkdir -p $RUN_NEW
+### CREATE DIRECTORIES
+mkdir -p $INSTDIR/bin
+mkdir -p $CONFDIR
+mkdir -p $LOGDIR
+mkdir -p $SPOOLDIR
 
-echo "[*] Cloning PMTA configuration..."
-cp -r /etc/pmta $ETC_NEW
-cp -r /var/log/pmta $LOG_NEW
-cp -r /var/spool/pmta $SPOOL_NEW
+### COPY ORIGINAL PMTA BINARIES TO PMTA2
+cp /usr/sbin/pmta $INSTDIR/bin/
+cp /usr/sbin/pmtad $INSTDIR/bin/
+cp /usr/sbin/pmtahttpd $INSTDIR/bin/
 
-echo "[*] Cloning binaries..."
-cp /usr/sbin/pmtad $BIN_NEW/
-cp /usr/sbin/pmta $BIN_NEW/
-cp /usr/sbin/pmtahttpd $BIN_NEW/
-cp /usr/sbin/pmtasnmpd $BIN_NEW/
+### CREATE NEW CONFIG
+cat > $CONFDIR/config <<EOF
+postmaster you@$hostname
+host-name $hostname
 
-chmod +x $BIN_NEW/*
+smtp-listener $pmtaip:$smtpport
 
-echo "[*] Fixing internal paths in config..."
-sed -i "s#/etc/pmta#$ETC_NEW#g" $ETC_NEW/config
-sed -i "s#/var/log/pmta#$LOG_NEW#g" $ETC_NEW/config
-sed -i "s#/var/spool/pmta#$SPOOL_NEW#g" $ETC_NEW/config
+domain-key mykey, $hostname, $CONFDIR/mykey.pem
 
-echo "[*] Updating listener ports..."
-sed -i "s/smtp-listener .*/smtp-listener $IP:$SMTP_PORT/" $ETC_NEW/config
+log-file $LOGDIR/pmta.log
 
-echo "[*] Updating hostname..."
-sed -i "s/host-name .*/host-name $HOST/" $ETC_NEW/config
-sed -i "s/postmaster .*/postmaster you@$HOST/" $ETC_NEW/config
+<spool $SPOOLDIR>
+    deliver-only no
+</spool>
 
-echo "[*] Updating HTTP port..."
-if ! grep -q "http-mgmt-port" $ETC_NEW/config; then
-    echo "http-mgmt-port $HTTP_PORT" >> $ETC_NEW/config
-else
-    sed -i "s/http-mgmt-port .*/http-mgmt-port $HTTP_PORT/" $ETC_NEW/config
-fi
+http-mgmt-port $webport
+http-access 127.0.0.1 monitor
+http-access ::1 monitor
+EOF
 
-echo "[*] Creating systemd service..."
+### COPY LICENSE + KEY
+cp license $CONFDIR/license
+cp mykey.$hostname.pem $CONFDIR/mykey.pem
 
-SERVICE_FILE="/etc/systemd/system/$INSTANCE.service"
-
-cat > $SERVICE_FILE <<EOF
+### CREATE SYSTEMD SERVICE FILE
+cat > /etc/systemd/system/pmta2.service <<EOF
 [Unit]
-Description=PowerMTA Instance $INSTANCE
+Description=PowerMTA Instance 2
 After=network.target
 
 [Service]
-Type=forking
-WorkingDirectory=$ETC_NEW
-ExecStart=$BIN_NEW/pmtad
-ExecStop=$BIN_NEW/pmtad shutdown
-PIDFile=$RUN_NEW/pid
+ExecStart=$INSTDIR/bin/pmtad --config=$CONFDIR/config --pid-file=$PIDFILE
+PIDFile=$PIDFILE
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-echo "[*] Reloading systemd..."
+chmod 644 /etc/systemd/system/pmta2.service
 systemctl daemon-reload
+systemctl enable pmta2
+systemctl restart pmta2
 
-echo "[*] Enabling service..."
-systemctl enable $INSTANCE
-
-echo "[*] Starting instance..."
-systemctl start $INSTANCE
-
-echo "==============================================="
-echo "PowerMTA clone instance installed successfully!"
-echo "Instance name:     $INSTANCE"
-echo "Config directory:  $ETC_NEW"
-echo "Log directory:     $LOG_NEW"
-echo "Spool directory:   $SPOOL_NEW"
-echo "Binary directory:  $BIN_NEW"
-echo "SMTP Port:         $SMTP_PORT"
-echo "HTTP Port:         $HTTP_PORT"
-echo "==============================================="
-echo "Run: systemctl status $INSTANCE"
-echo "==============================================="
+echo "===================================="
+echo "PMTA2 Installed"
+echo "SMTP: $pmtaip:$smtpport"
+echo "WEB: http://$pmtaip:$webport"
+echo "Config: $CONFDIR/config"
+echo "Logs: $LOGDIR"
+echo "===================================="
