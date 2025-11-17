@@ -25,12 +25,12 @@ echo "[*] Creating directory structure recommended by PMTA User Guide..."
 mkdir -p $BIN $CFG $LOG $SPOOL $RUN
 
 echo "[*] Downloading PMTA binaries and config/templates..."
-wget -q -O $BIN/pmta https://raw.githubusercontent.com/19965/sh/main/pmta
-wget -q -O $BIN/pmtad https://raw.githubusercontent.com/19965/sh/main/pmtad
-wget -q -O $BIN/pmtahttpd https://raw.githubusercontent.com/19965/sh/main/pmtahttpd
-wget -q -O $CFG/license https://raw.githubusercontent.com/19965/sh/main/license
-wget -q -O $CFG/mykey.$HOST.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem
-wget -q -O $CFG/config.raw https://raw.githubusercontent.com/19965/sh/main/config
+wget -q -O $BIN/pmta https://raw.githubusercontent.com/19965/sh2/main/pmta
+wget -q -O $BIN/pmtad https://raw.githubusercontent.com/19965/sh2/main/pmtad
+wget -q -O $BIN/pmtahttpd https://raw.githubusercontent.com/19965/sh2/main/pmtahttpd
+wget -q -O $CFG/license https://raw.githubusercontent.com/19965/sh2/main/license
+wget -q -O $CFG/mykey.$HOST.pem https://raw.githubusercontent.com/19965/sh2/main/mykey.6068805.com.pem
+wget -q -O $CFG/config.raw https://raw.githubusercontent.com/19965/sh2/main/config
 
 chmod +x $BIN/*
 
