@@ -1,87 +1,76 @@
 #!/bin/bash
 set -e
 
-###########################################
-#  PMTA MULTI-INSTANCE INSTALLER (Ubuntu) #
-###########################################
+echo "=== PowerMTA OFFICIAL MULTI INSTANCE INSTALLER ==="
 
-if [ "$(id -u)" -ne 0 ]; then
+if [ "$(id -u)" != "0" ]; then
     echo "Run as root."
     exit 1
 fi
 
-echo "=== PMTA SECOND INSTANCE INSTALLER ==="
+read -p "Instance name (ex: pmta2): " INSTANCE
+read -p "Instance IP: " IP
+read -p "Hostname: " HOST
+read -p "SMTP Port (unique): " SMTP_PORT
+read -p "HTTP Port (unique): " HTTP_PORT
 
-read -p "Instance name (example: pmta2): " instance
-read -p "PMTA IP: " pmtaip
-read -p "PMTA Hostname: " pmtahost
-read -p "PMTA Port (must be unique): " pmtaport
+BASE="/opt/$INSTANCE"
+BIN="$BASE/bin"
+CFG="$BASE/config"
+LOG="$BASE/log"
+SPOOL="$BASE/spool"
+RUN="$BASE/run"
 
-# Directories for this instance
-inst_dir="/etc/$instance"
-bin_dir="/usr/sbin/$instance"
-svc_name="$instance.service"
+echo "[*] Creating directory structure recommended by PMTA User Guide..."
+mkdir -p $BIN $CFG $LOG $SPOOL $RUN
 
-# Ensure directories exist
-mkdir -p "$inst_dir"
-mkdir -p "$bin_dir"
+echo "[*] Downloading PMTA binaries and config/templates..."
+wget -q -O $BIN/pmta https://raw.githubusercontent.com/19965/sh/main/pmta
+wget -q -O $BIN/pmtad https://raw.githubusercontent.com/19965/sh/main/pmtad
+wget -q -O $BIN/pmtahttpd https://raw.githubusercontent.com/19965/sh/main/pmtahttpd
+wget -q -O $CFG/license https://raw.githubusercontent.com/19965/sh/main/license
+wget -q -O $CFG/mykey.$HOST.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem
+wget -q -O $CFG/config.raw https://raw.githubusercontent.com/19965/sh/main/config
 
-echo "[*] Downloading files..."
+chmod +x $BIN/*
 
-files=(
-    "pmta https://raw.githubusercontent.com/19965/sh2/main/pmta"
-    "pmtad https://raw.githubusercontent.com/19965/sh2/main/pmtad"
-    "pmtahttpd https://raw.githubusercontent.com/19965/sh2/main/pmtahttpd"
-    "pmtasnmpd https://raw.githubusercontent.com/19965/sh2/main/pmtasnmpd"
-    "license https://raw.githubusercontent.com/19965/sh2/main/license"
-    "config https://raw.githubusercontent.com/19965/sh2/main/config"
-    "mykey.$pmtahost.pem https://raw.githubusercontent.com/19965/sh2/main/mykey.6068805.com.pem"
-)
+echo "[*] Building PMTA config file according to User Guide rules..."
+sed "s/QQQipQQQ/$IP/g;
+     s/QQQhostnameQQQ/$HOST/g;
+     s/QQQportQQQ/$SMTP_PORT/g" $CFG/config.raw > $CFG/config
 
-for file in "${files[@]}"; do
-    name=$(echo $file | awk '{print $1}')
-    url=$(echo $file | awk '{print $2}')
-    wget -q -O "/tmp/$name" "$url"
-done
+# Replace all hardcoded paths with instance paths
+sed -i "s|/etc/pmta|$CFG|g" $CFG/config
+sed -i "s|/var/log/pmta|$LOG|g" $CFG/config
+sed -i "s|/var/spool/pmta|$SPOOL|g" $CFG/config
 
-echo "[*] Copying instance files..."
+echo "http-mgmt-port $HTTP_PORT" >> $CFG/config
 
-cp /tmp/license "$inst_dir/"
-cp /tmp/config "$inst_dir/"
-cp "/tmp/mykey.$pmtahost.pem" "$inst_dir/"
+echo "log-file $LOG/pmta.log" >> $CFG/config
+echo "<acct-file $LOG/acct.csv>" >> $CFG/config
+echo "</acct-file>" >> $CFG/config
 
-# Copy binaries under unique folder
-cp /tmp/pmta "$bin_dir/"
-cp /tmp/pmtad "$bin_dir/"
-cp /tmp/pmtahttpd "$bin_dir/"
-cp /tmp/pmtasnmpd "$bin_dir/"
+echo "<spool $SPOOL>" >> $CFG/config
+echo "</spool>" >> $CFG/config
 
-chmod +x "$bin_dir/"*
+####################################
+# SYSTEMD SERVICE PER USER GUIDE
+####################################
 
-echo "[*] Updating configuration..."
+SERVICE_FILE="/etc/systemd/system/$INSTANCE.service"
 
-sed -i "s/QQQipQQQ/$pmtaip/g" "$inst_dir/config"
-sed -i "s/QQQhostnameQQQ/$pmtahost/g" "$inst_dir/config"
-sed -i "s/QQQportQQQ/$pmtaport/g" "$inst_dir/config"
+echo "[*] Creating official systemd unit: $SERVICE_FILE"
 
-# Add unique HTTP/SNMP port
-
-
-##################################
-# SYSTEMD SERVICE FOR INSTANCE   #
-##################################
-
-echo "[*] Creating systemd service: $svc_name"
-
-cat > "/etc/systemd/system/$svc_name" <<EOF
+cat > $SERVICE_FILE <<EOF
 [Unit]
-Description=PowerMTA Instance $instance
+Description=PowerMTA Instance $INSTANCE
 After=network.target
 
 [Service]
 Type=forking
-ExecStart=$bin_dir/pmtad -c $inst_dir/config
-ExecStop=$bin_dir/pmtad shutdown
+ExecStart=$BIN/pmtad -c $CFG/config -pid $RUN/pid
+ExecStop=$BIN/pmtad shutdown
+PIDFile=$RUN/pid
 Restart=always
 
 [Install]
@@ -89,16 +78,17 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable "$svc_name"
-systemctl restart "$svc_name"
+systemctl enable $INSTANCE
+systemctl start $INSTANCE
 
-echo "============================================="
-echo "PMTA instance installed successfully!"
-echo "Instance name: $instance"
-echo "Config dir: $inst_dir"
-echo "Binary dir: $bin_dir"
-echo "Service name: $svc_name"
-echo "Hostname: $pmtahost"
-echo "SMTP Port: $pmtaport"
-echo "Login: admin / admin1111"
-echo "============================================="
+echo "=============================================="
+echo "PowerMTA instance installed successfully!"
+echo "Instance: $INSTANCE"
+echo "Config:   $CFG/config"
+echo "Bins:     $BIN"
+echo "Logs:     $LOG"
+echo "Spool:    $SPOOL"
+echo "RUN:      $RUN"
+echo "HTTP:     $HTTP_PORT"
+echo "SMTP:     $SMTP_PORT"
+echo "=============================================="
