@@ -1,65 +1,65 @@
 #!/bin/bash
 set -e
 
-echo "=== PowerMTA OFFICIAL MULTI INSTANCE INSTALLER ==="
+echo "=== PowerMTA 4.0r6 MULTI INSTANCE CLONE INSTALLER ==="
 
 if [ "$(id -u)" != "0" ]; then
-    echo "Run as root."
+    echo "Run this script as ROOT."
     exit 1
 fi
 
-read -p "Instance name (ex: pmta2): " INSTANCE
-read -p "Instance IP: " IP
-read -p "Hostname: " HOST
-read -p "SMTP Port (unique): " SMTP_PORT
-read -p "HTTP Port (unique): " HTTP_PORT
+read -p "Instance name (example: pmta2): " INSTANCE
+read -p "New SMTP port (unique): " SMTP_PORT
+read -p "New HTTP port (unique): " HTTP_PORT
+read -p "New hostname: " HOST
+read -p "New IP: " IP
 
-BASE="/opt/$INSTANCE"
-BIN="$BASE/bin"
-CFG="$BASE/config"
-LOG="$BASE/log"
-SPOOL="$BASE/spool"
-RUN="$BASE/run"
+# Paths for the new instance
+ETC_NEW="/etc/$INSTANCE"
+LOG_NEW="/var/log/$INSTANCE"
+SPOOL_NEW="/var/spool/$INSTANCE"
+BIN_NEW="/usr/sbin/$INSTANCE"
+RUN_NEW="/var/run/$INSTANCE"
 
-echo "[*] Creating directory structure recommended by PMTA User Guide..."
-mkdir -p $BIN $CFG $LOG $SPOOL $RUN
+echo "[*] Creating directory structure..."
+mkdir -p $BIN_NEW
+mkdir -p $RUN_NEW
 
-echo "[*] Downloading PMTA binaries and config/templates..."
-wget -q -O $BIN/pmta https://raw.githubusercontent.com/19965/sh2/main/pmta
-wget -q -O $BIN/pmtad https://raw.githubusercontent.com/19965/sh2/main/pmtad
-wget -q -O $BIN/pmtahttpd https://raw.githubusercontent.com/19965/sh2/main/pmtahttpd
-wget -q -O $CFG/license https://raw.githubusercontent.com/19965/sh2/main/license
-wget -q -O $CFG/mykey.$HOST.pem https://raw.githubusercontent.com/19965/sh2/main/mykey.6068805.com.pem
-wget -q -O $CFG/config.raw https://raw.githubusercontent.com/19965/sh2/main/config
+echo "[*] Cloning PMTA configuration..."
+cp -r /etc/pmta $ETC_NEW
+cp -r /var/log/pmta $LOG_NEW
+cp -r /var/spool/pmta $SPOOL_NEW
 
-chmod +x $BIN/*
+echo "[*] Cloning binaries..."
+cp /usr/sbin/pmtad $BIN_NEW/
+cp /usr/sbin/pmta $BIN_NEW/
+cp /usr/sbin/pmtahttpd $BIN_NEW/
+cp /usr/sbin/pmtasnmpd $BIN_NEW/
 
-echo "[*] Building PMTA config file according to User Guide rules..."
-sed "s/QQQipQQQ/$IP/g;
-     s/QQQhostnameQQQ/$HOST/g;
-     s/QQQportQQQ/$SMTP_PORT/g" $CFG/config.raw > $CFG/config
+chmod +x $BIN_NEW/*
 
-# Replace all hardcoded paths with instance paths
-sed -i "s|/etc/pmta|$CFG|g" $CFG/config
-sed -i "s|/var/log/pmta|$LOG|g" $CFG/config
-sed -i "s|/var/spool/pmta|$SPOOL|g" $CFG/config
+echo "[*] Fixing internal paths in config..."
+sed -i "s#/etc/pmta#$ETC_NEW#g" $ETC_NEW/config
+sed -i "s#/var/log/pmta#$LOG_NEW#g" $ETC_NEW/config
+sed -i "s#/var/spool/pmta#$SPOOL_NEW#g" $ETC_NEW/config
 
-echo "http-mgmt-port $HTTP_PORT" >> $CFG/config
+echo "[*] Updating listener ports..."
+sed -i "s/smtp-listener .*/smtp-listener $IP:$SMTP_PORT/" $ETC_NEW/config
 
-echo "log-file $LOG/pmta.log" >> $CFG/config
-echo "<acct-file $LOG/acct.csv>" >> $CFG/config
-echo "</acct-file>" >> $CFG/config
+echo "[*] Updating hostname..."
+sed -i "s/host-name .*/host-name $HOST/" $ETC_NEW/config
+sed -i "s/postmaster .*/postmaster you@$HOST/" $ETC_NEW/config
 
-echo "<spool $SPOOL>" >> $CFG/config
-echo "</spool>" >> $CFG/config
+echo "[*] Updating HTTP port..."
+if ! grep -q "http-mgmt-port" $ETC_NEW/config; then
+    echo "http-mgmt-port $HTTP_PORT" >> $ETC_NEW/config
+else
+    sed -i "s/http-mgmt-port .*/http-mgmt-port $HTTP_PORT/" $ETC_NEW/config
+fi
 
-####################################
-# SYSTEMD SERVICE PER USER GUIDE
-####################################
+echo "[*] Creating systemd service..."
 
 SERVICE_FILE="/etc/systemd/system/$INSTANCE.service"
-
-echo "[*] Creating official systemd unit: $SERVICE_FILE"
 
 cat > $SERVICE_FILE <<EOF
 [Unit]
@@ -68,27 +68,34 @@ After=network.target
 
 [Service]
 Type=forking
-ExecStart=$BIN/pmtad -c $CFG/config -pid $RUN/pid
-ExecStop=$BIN/pmtad shutdown
-PIDFile=$RUN/pid
+WorkingDirectory=$ETC_NEW
+ExecStart=$BIN_NEW/pmtad
+ExecStop=$BIN_NEW/pmtad shutdown
+PIDFile=$RUN_NEW/pid
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
+echo "[*] Reloading systemd..."
 systemctl daemon-reload
+
+echo "[*] Enabling service..."
 systemctl enable $INSTANCE
+
+echo "[*] Starting instance..."
 systemctl start $INSTANCE
 
-echo "=============================================="
-echo "PowerMTA instance installed successfully!"
-echo "Instance: $INSTANCE"
-echo "Config:   $CFG/config"
-echo "Bins:     $BIN"
-echo "Logs:     $LOG"
-echo "Spool:    $SPOOL"
-echo "RUN:      $RUN"
-echo "HTTP:     $HTTP_PORT"
-echo "SMTP:     $SMTP_PORT"
-echo "=============================================="
+echo "==============================================="
+echo "PowerMTA clone instance installed successfully!"
+echo "Instance name:     $INSTANCE"
+echo "Config directory:  $ETC_NEW"
+echo "Log directory:     $LOG_NEW"
+echo "Spool directory:   $SPOOL_NEW"
+echo "Binary directory:  $BIN_NEW"
+echo "SMTP Port:         $SMTP_PORT"
+echo "HTTP Port:         $HTTP_PORT"
+echo "==============================================="
+echo "Run: systemctl status $INSTANCE"
+echo "==============================================="
