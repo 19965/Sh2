@@ -6,7 +6,7 @@ PORT1_HOST=5000
 PORT1_CT=5000
 PORT2_HOST=6000
 PORT2_CT=6000
-GITHUB_SCRIPT_URL="https://raw.githubusercontent.com/USERNAME/REPO/main/install.sh"
+GITHUB_SCRIPT_URL="https://raw.githubusercontent.com/19965/sh2/main/ub.sh"
 # =================
 
 echo "[1] Installing LXC & tools..."
