@@ -196,7 +196,7 @@ reply /RBL Restriction/ mode=backoff
 # Port used for HTTP management interface
 #############################################
 ############################################
-http-mgmt-port 8080
+http-mgmt-port 5000
 
 http-access 127.0.0.1 monitor
 http-access ::1 monitor
