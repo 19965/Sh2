@@ -18,8 +18,8 @@ domain-key mykey, QQQhostnameQQQ, /etc/pmta/mykey.QQQhostnameQQQ.pem
 #
 # Settings per source IP address (for incoming SMTP connections)
 #
-<smtp-user simon>
-password Mona99dj
+<smtp-user mlilbu>
+password 6iu3TY9iZUZPDF
 source {pmta-auth}
 </smtp-user>
 <source {pmta-auth}>
