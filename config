@@ -18,8 +18,8 @@ domain-key mykey, QQQhostnameQQQ, /etc/pmta/mykey.QQQhostnameQQQ.pem
 #
 # Settings per source IP address (for incoming SMTP connections)
 #
-<smtp-user simon>
-password Mona99dj
+<smtp-user mlilbu>
+password 6iu3TY9iZUZPDF
 source {pmta-auth}
 </smtp-user>
 <source {pmta-auth}>
@@ -196,7 +196,7 @@ reply /RBL Restriction/ mode=backoff
 # Port used for HTTP management interface
 #############################################
 ############################################
-http-mgmt-port 8080
+http-mgmt-port 5000
 
 http-access 127.0.0.1 monitor
 http-access ::1 monitor
