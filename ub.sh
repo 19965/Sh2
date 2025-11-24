@@ -74,14 +74,14 @@ if [ -d "/etc/pmta" ]; then
 fi
 
 # Copy files to appropriate locations
-echo "Moving new files..."
-\mv -f license /etc/pmta/
-\mv -f config /etc/pmta/
-\mv -f "mykey.$pmtahostname.pem" "/etc/pmta/mykey.$pmtahostname.pem"
-\mv -f pmta /usr/sbin/
-\mv -f pmtad /usr/sbin/
-\mv -f pmtahttpd /usr/sbin/
-\mv -f pmtasnmpd /usr/sbin/
+echo "Copying new files..."
+\cp -f license /etc/pmta/
+\cp -f config /etc/pmta/
+\cp -f mykey.$pmtahostname.pem "/etc/pmta/mykey.$pmtahostname.pem"
+\cp -f pmta /usr/sbin/
+\cp -f pmtad /usr/sbin/
+\cp -f pmtahttpd /usr/sbin/
+\cp -f pmtasnmpd /usr/sbin/
 
 # Update configuration with provided inputs
 echo "Updating configurations..."
