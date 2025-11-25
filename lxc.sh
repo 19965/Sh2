@@ -27,14 +27,17 @@ echo "Container IP = $CT_IP"
 echo "[5] Installing curl/wget inside container..."
 lxc-attach -n $CT_NAME -- bash -c "apt update -y && apt install -y curl wget"
 
-echo "[6] Downloading GitHub installer inside container..."
-lxc-attach -n $CT_NAME -- bash -c "wget -O /root/install.sh $GITHUB_SCRIPT_URL"
+echo "[6] Preparing directory..."
+lxc-attach -n $CT_NAME -- bash -c "mkdir -p /opt/install"
 
-echo "[7] Making script executable..."
-lxc-attach -n $CT_NAME -- bash -c "chmod +x /root/install.sh"
+echo "[7] Downloading installer..."
+lxc-attach -n $CT_NAME -- bash -c "wget -O /opt/install/install.sh $GITHUB_SCRIPT_URL"
 
-echo "[8] Running installer script inside container..."
-lxc-attach -n $CT_NAME -- bash -c "/root/install.sh"
+echo "[8] Making script executable..."
+lxc-attach -n $CT_NAME -- bash -c "chmod +x /opt/install/install.sh"
+
+echo "[9] Running installer script..."
+lxc-attach -n $CT_NAME -- bash -c "/opt/install/install.sh"
 
 echo "[9] Enabling IP forwarding..."
 sysctl -w net.ipv4.ip_forward=1
