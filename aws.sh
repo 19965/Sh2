@@ -147,12 +147,12 @@ iptables -A FORWARD -d "$LXC_SUBNET" -j ACCEPT
 # POSTROUTING: MASQUERADE for entire LXC subnet going out
 iptables -t nat -A POSTROUTING -s "$LXC_SUBNET" -o "$HOST_OUT_IF" -j MASQUERADE
 
-# PREROUTING: DNAT for port forwarding
-iptables -t nat -A PREROUTING -p tcp --dport $PORT1_HOST -j DNAT --to-destination "$CT_IP:$PORT1_CT"
-iptables -t nat -A PREROUTING -p tcp --dport $PORT2_HOST -j DNAT --to-destination "$CT_IP:$PORT2_CT"
-iptables -t nat -A PREROUTING -p tcp --dport 25 -j DNAT --to-destination "$CT_IP:25"
-iptables -t nat -A PREROUTING -p tcp --dport 587 -j DNAT --to-destination "$CT_IP:587"
-iptables -t nat -A PREROUTING -p tcp --dport 465 -j DNAT --to-destination "$CT_IP:465"
+# PREROUTING: DNAT for port forwarding (exclude traffic from LXC subnet to prevent loopback issues)
+iptables -t nat -A PREROUTING ! -s "$LXC_SUBNET" -p tcp --dport $PORT1_HOST -j DNAT --to-destination "$CT_IP:$PORT1_CT"
+iptables -t nat -A PREROUTING ! -s "$LXC_SUBNET" -p tcp --dport $PORT2_HOST -j DNAT --to-destination "$CT_IP:$PORT2_CT"
+iptables -t nat -A PREROUTING ! -s "$LXC_SUBNET" -p tcp --dport 25 -j DNAT --to-destination "$CT_IP:25"
+iptables -t nat -A PREROUTING ! -s "$LXC_SUBNET" -p tcp --dport 587 -j DNAT --to-destination "$CT_IP:587"
+iptables -t nat -A PREROUTING ! -s "$LXC_SUBNET" -p tcp --dport 465 -j DNAT --to-destination "$CT_IP:465"
 
 # FORWARD: Allow forwarded traffic to these specific ports
 iptables -A FORWARD -p tcp -d "$CT_IP" --dport $PORT1_CT -j ACCEPT
@@ -256,24 +256,34 @@ echo "Container IP: $CT_IP"
 echo "LXC subnet NATed: $LXC_SUBNET"
 echo "Host outbound interface: $HOST_OUT_IF"
 echo ""
-echo "Forwarded Ports:"
-echo "  $PORT1_HOST -> $CT_IP:$PORT1_CT"
-echo "  $PORT2_HOST -> $CT_IP:$PORT2_CT"
-echo "  25 -> $CT_IP:25"
-echo "  587 -> $CT_IP:587"
-echo "  465 -> $CT_IP:465"
+echo "Forwarded Ports (external → container):"
+echo "  $PORT1_HOST → $CT_IP:$PORT1_CT"
+echo "  $PORT2_HOST → $CT_IP:$PORT2_CT"
+echo "  25 → $CT_IP:25"
+echo "  587 → $CT_IP:587"
+echo "  465 → $CT_IP:465"
 echo ""
 echo "Auto-restore service: iptables-restore-loop (enabled)"
 echo "Iptables rules saved to: $IPTABLES_RULES_FILE"
 echo "====================================="
 echo ""
-echo "Testing outbound connectivity from container..."
+echo "Testing connectivity..."
 if lxc-attach -n "$CT_NAME" -- timeout 5 ping -c 2 8.8.8.8 >/dev/null 2>&1; then
-    echo "✓ Container can reach internet (ping 8.8.8.8 works)"
+    echo "✓ Container can reach internet (ping works)"
 else
     echo "✗ WARNING: Container cannot reach internet"
 fi
+
+if lxc-attach -n "$CT_NAME" -- timeout 5 curl -s http://google.com >/dev/null 2>&1; then
+    echo "✓ Container HTTP works"
+else
+    echo "✗ WARNING: Container HTTP not working"
+fi
+
 echo ""
-echo "To test SMTP connectivity from inside container, run:"
+echo "To test SMTP from inside container:"
 echo "  lxc-attach -n $CT_NAME -- telnet gmail-smtp-in.l.google.com 25"
+echo ""
+echo "To access container shell:"
+echo "  lxc-attach -n $CT_NAME"
 echo "====================================="
