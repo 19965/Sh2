@@ -11,7 +11,7 @@ host-name QQQhostnameQQQ
 #
 # IP address(es) and port(s) on which to listen for incoming SMTP connections
 #
-smtp-listener QQQipQQQ:QQQportQQQ     # listens on all local IPs
+smtp-listener 0.0.0.0:6000    # listens on all local IPs
 
 domain-key mykey, QQQhostnameQQQ, /etc/pmta/mykey.QQQhostnameQQQ.pem
 
