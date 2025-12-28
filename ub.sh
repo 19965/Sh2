@@ -12,7 +12,6 @@ fi
 # Prompt for user inputs
 read -p "Your PMTA IP: " pmtaip
 read -p "Your PMTA hostname: " pmtahostname
-read -p "Your PMTA port: " pmtaport
 
 # Validate IP address format
 if [[ ! $pmtaip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -85,13 +84,38 @@ echo "Copying new files..."
 
 # Update configuration with provided inputs
 echo "Updating configurations..."
-sed -i "s/QQQipQQQ/$pmtaip/g" `grep "QQQipQQQ" -rl /etc/pmta/ 2>/dev/null || echo ""`
 sed -i "s/QQQhostnameQQQ/$pmtahostname/g" `grep "QQQhostnameQQQ" -rl /etc/pmta/ 2>/dev/null || echo ""`
-sed -i "s/QQQportQQQ/$pmtaport/g" `grep "QQQportQQQ" -rl /etc/pmta/ 2>/dev/null || echo ""`
+
+# ---------------------------------------------------------
+# NEW SECTION: Create VMTA directory and Dynamic IP File
+# ---------------------------------------------------------
+echo "Configuring VMTA directory and IP config file..."
+
+# 1. Create the vmta directory
+mkdir -p /etc/pmta/vmta
+
+# 2. Format the IP (replace dots with underscores)
+# We use the $pmtaip variable input by the user at the start
+formatted_ip=$(echo "$pmtaip" | tr '.' '_')
+vmta_file="/etc/pmta/vmta/${formatted_ip}.conf"
+
+# 3. Create the empty file
+touch "$vmta_file"
+echo "Created empty VMTA file: $vmta_file"
+
+# 4. Add the include line to the end of the main config
+# We verify if the line exists first to avoid duplicates if run multiple times
+if ! grep -q "include $vmta_file" /etc/pmta/config; then
+    echo "" >> /etc/pmta/config
+    echo "include $vmta_file" >> /etc/pmta/config
+    echo "Added 'include $vmta_file' to /etc/pmta/config"
+fi
+# ---------------------------------------------------------
 
 # Set ownership and permissions for pmtahttpd and configuration directory
 echo "Setting permissions..."
 chown pmta:pmta /usr/sbin/pmtahttpd
+# This recursive chown will now also apply to the new vmta folder and file
 chown -R pmta:pmta /etc/pmta/ 2>/dev/null || echo "Could not change ownership of /etc/pmta"
 chmod 755 /usr/sbin/pmtahttpd
 chmod 600 /etc/pmta/license 2>/dev/null || echo "Could not set license permissions"
@@ -115,7 +139,8 @@ if id pmta &>/dev/null; then
 else
     echo "Warning: pmta user may not exist properly"
 fi
-# Restart PMTA services
+
+# Restart PMTA services (Final Restart)
 echo "Restarting PMTA services..."
 systemctl daemon-reload 2>/dev/null || true
 
@@ -134,6 +159,7 @@ fi
 
 # Enable PMTA to start on boot
 systemctl enable pmta 2>/dev/null || true
+
 # Completion message
 echo "PMTA installation successful!"
 echo "============================================="
