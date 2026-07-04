@@ -200,7 +200,7 @@ http-mgmt-port 5000
 
 http-access 127.0.0.1 monitor
 http-access ::1 monitor
-http-access 23.226.140.126 admin
+http-access 45.38.59.142 admin
 #############################################
 # Whether to run the PowerMTA deamon as root
 #############################################
